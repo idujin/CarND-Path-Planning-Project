@@ -203,10 +203,11 @@ int main() {
 
   // start in lane 1
   int lane = 1;
+  bool prev_lane_changed = false;
   // Have a reference velocity to target
   double ref_vel = 0.0;//49.5;//mph
 
-  h.onMessage([&ref_vel, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &lane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&prev_lane_changed, &ref_vel, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &lane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -245,18 +246,21 @@ int main() {
 
           	int prev_size = previous_path_x.size(); 
 
-          	// Part 4. sensor fusion
+          	// Sensor fusion
           	if(prev_size > 0)
           	{
           		car_s = end_path_s;
           	}
 
           	bool too_close = false;
-
+          	bool change_lane = false;
+          	float closest_dist = 0.f;
+          	const float min_dist = 35.0;
           	for(int i=0; i< sensor_fusion.size(); i++)
           	{
           		// car is in my lane
           		float d = sensor_fusion[i][6];
+          		
           		if(d <(2 + 4*lane + 2) && d>(2+4*lane-2))
           		{
           			double vx = sensor_fusion[i][3];
@@ -267,12 +271,19 @@ int main() {
           			// if using previous points can project s value outwards in time
           			check_car_s += ((double)prev_size *.02* check_speed);
           			// check s values greater than mine and s gap
-          			if((check_car_s > car_s) && ((check_car_s - car_s) < 30))
+          			if((check_car_s > car_s) && ((check_car_s - car_s) < min_dist))
           			{
           				// Do some logic here, lower referene velocity so we dont crash into the car infront of us, could
           				// also flag to try to change lanes.
           				//ref_vel = 29.5; //mph
           				too_close = true;
+          				change_lane = true;
+          				closest_dist = (check_car_s - car_s);
+          				// prevent to change lane during changing lane
+          				//if(d <(2 + 4*lane + 1) && d>(2+4*lane-1))
+          					
+
+
           			}
           		}
 
@@ -281,11 +292,176 @@ int main() {
           	if (too_close)
           	{
           		ref_vel -= .224; //5m/s^2
+          		ref_vel -= .224 *(min_dist - closest_dist)/min_dist;//.224; //5m/s^2
+
           	}
           	else if(ref_vel < 49.5)
           	{
           		ref_vel += .224;
           	}
+
+
+
+          	if(change_lane && prev_lane_changed == false)
+          	{
+
+          		float cost_left = 0.f;
+          		float cost_right = 0.f;
+          		bool left_warning = false;
+          		bool right_warning = false;
+          		for(int i=0; i< sensor_fusion.size(); i++)
+	          	{
+	          		// car is in my lane
+	          		float d = sensor_fusion[i][6];
+	          		int left_lane = max(lane - 1, 0);
+	          		int right_lane = min(lane + 1, 2);
+	          		
+	          		// check left lane
+	          		if(d <(2 + 4*left_lane + 2) && d>(2+4*left_lane-2) && left_lane != lane)
+	          		{
+	          			double vx = sensor_fusion[i][3];
+	          			double vy = sensor_fusion[i][4];
+	          			double check_speed = sqrt(vx*vx + vy*vy);
+	          			double check_car_s = sensor_fusion[i][5];
+
+	          			// if using previous points can project s value outwards in time
+	          			check_car_s += ((double)prev_size *.02* check_speed);
+	          			// check s values greater than mine and s gap
+	          			// in front of my car
+	          			if(check_car_s > car_s && (check_car_s - car_s) > 10)
+	          			{
+	          				cost_left += -(check_speed) - (check_car_s - car_s) + 20;
+	          				// cost function
+	          				// + slower check_speed of infront of my car
+	          				// + higher check_speed of behind of my car
+	          				std::cout << "L front check_speed: " << check_speed<<"\n";
+	          				std::cout << "L front dist: " << check_car_s - car_s<<"\n";
+
+	          			}
+	          			// behind of my car
+	          			else if(car_s > check_car_s && (car_s - check_car_s) > 10)
+	          			{
+	          				cost_left += (check_speed) - (check_car_s - car_s);
+	          				std::cout << "L behind check_speed: " << check_speed<<"\n";
+	          				std::cout << "L behind dist: " << (car_s - check_car_s)<<"\n";
+	          			}
+	          			// too close to change lane
+	          			else
+	          			{
+	          				left_warning = true;
+	          				cost_left += 1000;
+	          				std::cout << "L warning dist: " << (car_s - check_car_s)<<"\n";
+	          			}
+	          		}
+
+	          		//check right lane
+	          		if(d <(2 + 4*right_lane + 2) && d>(2+4*right_lane-2) && right_lane != lane)
+	          		{
+	          			double vx = sensor_fusion[i][3];
+	          			double vy = sensor_fusion[i][4];
+	          			double check_speed = sqrt(vx*vx + vy*vy);
+	          			double check_car_s = sensor_fusion[i][5];
+
+	          			// if using previous points can project s value outwards in time
+	          			check_car_s += ((double)prev_size *.02* check_speed);
+	          			// check s values greater than mine and s gap
+	          			
+	          			// in front of my car
+	          			if(check_car_s > car_s && (check_car_s - car_s) > 10)
+	          			{
+	          				cost_right += -(check_speed) - (check_car_s - car_s) + 20;
+	          				// cost function
+	          				// + slower check_speed of infront of my car
+	          				// + higher check_speed of behind of my car
+	          				std::cout << "R front check_speed: " << check_speed<<"\n";
+	          				std::cout << "R front dist: " << car_s - check_car_s<<"\n";
+
+	          			}
+	          			// behind of my car
+	          			else if(car_s > check_car_s && (car_s - check_car_s) > 10)
+	          			{
+	          				cost_right += (check_speed) - (check_car_s - car_s);
+
+	          				std::cout << "R behind check_speed: " << check_speed<<"\n";
+	          				std::cout << "R behind dist: " << (car_s - check_car_s)<<"\n";
+
+	          			}
+	          			// too close to change lane
+	          			else
+	          			{
+	          				right_warning = true;
+	          				cost_right += 1000;
+	          				std::cout << "R warning dist: " << (car_s - check_car_s)<<"\n";
+	          			}
+	          			std::cout << "-------------------\n";
+	          		}
+	          	}
+	          	std::cout << "cost_left: " << cost_left<<"\n";
+	          	std::cout << "cost_right: " << cost_right<<"\n";
+	          	std::cout << "left_warning: " << left_warning<<"\n";
+	          	std::cout << "right_warning: " << right_warning<<"\n";
+	          	std::cout << "-------------------\n";
+	          	std::cout << "-------------------\n";
+
+	          	if((cost_left < cost_right) && left_warning == false)
+	          	{
+	          		prev_lane_changed = true;
+	          		// lane exist
+	          		switch(lane)
+	          		{
+	          			case 0:
+	          				if(right_warning == false) lane = 1;
+	          				else prev_lane_changed = false;
+	          			break;
+	          			case 1:
+	          				lane = 0;
+	          			break;
+	          			case 2: 
+	          				lane = 1;
+	          			break;
+	          			default: 
+	          				lane = lane;
+	          			break;
+
+	          		}
+	          		
+	          		
+	          	}
+	          	else if(((cost_left >= cost_right) && right_warning == false))
+	          	{
+	          		prev_lane_changed = true;
+	          		switch(lane)
+	          		{
+	          			case 0:
+	          				lane = 1;
+	          			break;
+	          			case 1:
+	          				lane = 2;
+	          			break;
+	          			case 2: 
+	          				if(left_warning == false) lane = 1;
+	          				else prev_lane_changed = false;
+	          			break;
+	          			default: 
+	          				lane = lane;
+	          			break;
+
+	          		}
+	          		
+	          	}
+	          	else{
+	          		prev_lane_changed = false;
+	          	}
+
+  	
+          	}
+          	else{
+          		prev_lane_changed = false;
+          	}
+
+
+
+
 
           	// Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
           	// Later we will interpolate these waypoints with a spline and fill it in with more points that control speed
