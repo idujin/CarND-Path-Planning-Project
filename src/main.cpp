@@ -349,24 +349,18 @@ int main() {
 	          				// cost function
 	          				// + slower check_speed of infront of my car
 	          				// + higher check_speed of behind of my car
-	          				std::cout << "L front check_speed: " << check_speed<<"\n";
-	          				std::cout << "L front dist: " << check_car_s - car_s<<"\n";
-
 	          			}
 	          			// behind of my car
 	          			else if(car_s > check_car_s && (car_s - check_car_s) > 15)
 	          			{
 	          				cost_left += (check_speed) - (check_car_s - car_s);
-	          				
-	          				std::cout << "L behind check_speed: " << check_speed<<"\n";
-	          				std::cout << "L behind dist: " << (car_s - check_car_s)<<"\n";
+
 	          			}
 	          			// too close to change lane
 	          			else
 	          			{
 	          				left_warning = true;
 	          				cost_left += 1000;
-	          				std::cout << "L warning dist: " << (car_s - check_car_s)<<"\n";
 	          			}
 	          		}
 
@@ -397,8 +391,6 @@ int main() {
 	          				// cost function
 	          				// + slower check_speed of infront of my car
 	          				// + higher check_speed of behind of my car
-	          				std::cout << "R front check_speed: " << check_speed<<"\n";
-	          				std::cout << "R front dist: " << car_s - check_car_s<<"\n";
 
 	          			}
 	          			// behind of my car
@@ -406,25 +398,16 @@ int main() {
 	          			{
 	          				cost_right += (check_speed) - (check_car_s - car_s);
 
-	          				std::cout << "R behind check_speed: " << check_speed<<"\n";
-	          				std::cout << "R behind dist: " << (car_s - check_car_s)<<"\n";
-
 	          			}
 	          			// too close to change lane
 	          			else
 	          			{
 	          				right_warning = true;
 	          				cost_right += 1000;
-	          				std::cout << "R warning dist: " << (car_s - check_car_s)<<"\n";
 	          			}
-	          			std::cout << "-------------------\n";
+
 	          		}
 	          	}
-	          	std::cout << "cost_left: " << cost_left<<"\n";
-	          	std::cout << "cost_right: " << cost_right<<"\n";
-	          	std::cout << "left_warning: " << left_warning<<"\n";
-	          	std::cout << "right_warning: " << right_warning<<"\n";
-	          	std::cout << "-------------------\n";
 
 	          	if(((cost_left < cost_right) && (left_warning == false))
 	          		|| left_no_car == true)
@@ -471,10 +454,6 @@ int main() {
 	          		}
 	          		
 	          	}
-
-	          	std::cout << "final lane: " << lane<<"\n";
-	          	std::cout << "-------------------\n";
-	          
 
   	
           	}

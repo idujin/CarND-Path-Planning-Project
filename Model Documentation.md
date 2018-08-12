@@ -3,12 +3,12 @@ Self-Driving Car Engineer Nanodegree Program
    
 ### Model
 ## Collisions prevention
-To avoid collisions, I computed the distance between the front car and mine. If the distance is smaller than the minimum distance I already set (I set the value to 30), ref_vel is decremented by 0.224 m. In addition, if the velocity of the front car is slower than mine, ref_vel is additionally decreased considering the distance. Specific equation is as below.
+To avoid collisions, I computed the distance between the front car and mine. If the distance is less than the minimum distance already set (I set the value to 30), the ref_vel will decreased by 0.224. In addition, if the velocity of the front car is slower than the velocity of my car, ref_vel is additionally decreased considering the distance. Specific equation is in line 293 to 297.
 
 
 ## Cost function
-To get the cost function, I used speed, distance and the number of car in front of mine at each of lane. For the front cars, the higher speed and the distance, get the lower cost. However, for the behind cars, the higher speed get the lower cost, and distance logic is same as the front car case.
+To get the cost function, I used the speed, distance, and number of cars in front of each car in each lane. For the front car, higher speeds and distances get lower costs. However, for the behind cars, the higher speed get the lower cost, and distance logic is same as the front car case.
 
 ## Lane change conditions
-Basically, if the vehicle cannot assure minimum distance between the front car, the lane is changed to other side with lower cost. However, I set some limitations. First, if the distance between front car and mine is less than 10 miles, the vehicle does not change lane. Similarly, if the distance between backward car and mine is less than 15 miles, the lane does not changed. Second, vehicle does not change lane during changing lane. I condidered if the vehicle is not located on the range of (center - 1, center + 1)[meters], it is during changing lane. Finally, even if one side of lane has the lower cost than the others, the lane is not changed when the distance to front car on that side is less than the distance between to front car on current lane.
+Basically, if the car can not get the minimum distance from the front car, the lane will change to the other with less cost. However, I set some limitations. First, if the distance between the front car of another lane and my car is less than 10 miles, the car will not change the lane. Likewise, if the distance between the rear car of another lane and my car is less than 15 miles, the lane is not changed. Second, it will not update to the new lane during lane change. I have considered the vehicle is changing lane if the vehicle is not in the (center-1, center + 1) [meter] range. Finally, the lane will not change if the distance between the front car and my car in the lane to change is less than the distance between the front car in the current lane and my car.
 
