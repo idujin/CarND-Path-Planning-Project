@@ -204,7 +204,7 @@ int main() {
   // start in lane 1
   int lane = 1;
   // Have a reference velocity to target
-  double ref_vel = 49.5;//mph
+  double ref_vel = 0.0;//49.5;//mph
 
   h.onMessage([&ref_vel, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &lane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
@@ -271,11 +271,20 @@ int main() {
           			{
           				// Do some logic here, lower referene velocity so we dont crash into the car infront of us, could
           				// also flag to try to change lanes.
-          				ref_vel = 29.5; //mph
-          				//too_close = true;
+          				//ref_vel = 29.5; //mph
+          				too_close = true;
           			}
           		}
 
+          	}
+
+          	if (too_close)
+          	{
+          		ref_vel -= .224; //5m/s^2
+          	}
+          	else if(ref_vel < 49.5)
+          	{
+          		ref_vel += .224;
           	}
 
           	// Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
