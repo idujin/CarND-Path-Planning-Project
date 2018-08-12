@@ -203,11 +203,10 @@ int main() {
 
   // start in lane 1
   int lane = 1;
-  bool prev_lane_changed = false;
   // Have a reference velocity to target
   double ref_vel = 0.0;//49.5;//mph
 
-  h.onMessage([&prev_lane_changed, &ref_vel, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &lane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&ref_vel, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &lane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -255,7 +254,8 @@ int main() {
           	bool too_close = false;
           	bool change_lane = false;
           	float closest_dist = 0.f;
-          	const float min_dist = 35.0;
+          	const float min_dist = 30.0;
+          	float front_car_speed = 0.f;
           	for(int i=0; i< sensor_fusion.size(); i++)
           	{
           		// car is in my lane
@@ -277,12 +277,11 @@ int main() {
           				// also flag to try to change lanes.
           				//ref_vel = 29.5; //mph
           				too_close = true;
-          				change_lane = true;
-          				closest_dist = (check_car_s - car_s);
+          				
+          				closest_dist = fmaxf(check_car_s - car_s, 0.f);
+          				front_car_speed = check_speed;
           				// prevent to change lane during changing lane
-          				//if(d <(2 + 4*lane + 1) && d>(2+4*lane-1))
-          					
-
+          				if(car_d <(2 + 4*lane + 1) && car_d>(2+4*lane-1)) change_lane = true;
 
           			}
           		}
@@ -292,7 +291,11 @@ int main() {
           	if (too_close)
           	{
           		ref_vel -= .224; //5m/s^2
-          		ref_vel -= .224 *(min_dist - closest_dist)/min_dist;//.224; //5m/s^2
+          		if( front_car_speed < car_speed) {
+          			float decrement_ratio = (min_dist - closest_dist)/min_dist;
+          			ref_vel -= .448 * decrement_ratio;//.224; //5m/s^2
+          			ref_vel = fmaxf(ref_vel, 0.f);
+          		}
 
           	}
           	else if(ref_vel < 49.5)
@@ -300,15 +303,20 @@ int main() {
           		ref_vel += .224;
           	}
 
+          	// if(car_d <(2 + 4*lane + 1) && car_d>(2+4*lane-1))
+          	// {
 
+          	// }
 
-          	if(change_lane && prev_lane_changed == false)
+          	if(change_lane)
           	{
 
           		float cost_left = 0.f;
           		float cost_right = 0.f;
           		bool left_warning = false;
           		bool right_warning = false;
+          		bool left_no_car = true;
+          		bool right_no_car = true;
           		for(int i=0; i< sensor_fusion.size(); i++)
 	          	{
 	          		// car is in my lane
@@ -323,14 +331,21 @@ int main() {
 	          			double vy = sensor_fusion[i][4];
 	          			double check_speed = sqrt(vx*vx + vy*vy);
 	          			double check_car_s = sensor_fusion[i][5];
-
+	          			left_no_car = false;
 	          			// if using previous points can project s value outwards in time
 	          			check_car_s += ((double)prev_size *.02* check_speed);
 	          			// check s values greater than mine and s gap
 	          			// in front of my car
 	          			if(check_car_s > car_s && (check_car_s - car_s) > 10)
 	          			{
-	          				cost_left += -(check_speed) - (check_car_s - car_s) + 20;
+	          				if(closest_dist > (check_car_s - car_s))
+	          				{
+	          					left_warning = true;
+	          					cost_left += 1000;
+	          				}
+	          				else{
+	          					cost_left += -(check_speed) - (check_car_s - car_s) + 20;
+	          				}
 	          				// cost function
 	          				// + slower check_speed of infront of my car
 	          				// + higher check_speed of behind of my car
@@ -339,9 +354,10 @@ int main() {
 
 	          			}
 	          			// behind of my car
-	          			else if(car_s > check_car_s && (car_s - check_car_s) > 10)
+	          			else if(car_s > check_car_s && (car_s - check_car_s) > 15)
 	          			{
 	          				cost_left += (check_speed) - (check_car_s - car_s);
+	          				
 	          				std::cout << "L behind check_speed: " << check_speed<<"\n";
 	          				std::cout << "L behind dist: " << (car_s - check_car_s)<<"\n";
 	          			}
@@ -361,7 +377,7 @@ int main() {
 	          			double vy = sensor_fusion[i][4];
 	          			double check_speed = sqrt(vx*vx + vy*vy);
 	          			double check_car_s = sensor_fusion[i][5];
-
+	          			right_no_car = false;
 	          			// if using previous points can project s value outwards in time
 	          			check_car_s += ((double)prev_size *.02* check_speed);
 	          			// check s values greater than mine and s gap
@@ -369,7 +385,15 @@ int main() {
 	          			// in front of my car
 	          			if(check_car_s > car_s && (check_car_s - car_s) > 10)
 	          			{
-	          				cost_right += -(check_speed) - (check_car_s - car_s) + 20;
+	          				if(closest_dist > (check_car_s - car_s))
+	          				{
+	          					right_warning = true;
+	          					cost_right += 1000;
+	          				}
+	          				else{
+	          					cost_right += -(check_speed) - (check_car_s - car_s) + 20;
+	          				}
+	          				
 	          				// cost function
 	          				// + slower check_speed of infront of my car
 	          				// + higher check_speed of behind of my car
@@ -378,7 +402,7 @@ int main() {
 
 	          			}
 	          			// behind of my car
-	          			else if(car_s > check_car_s && (car_s - check_car_s) > 10)
+	          			else if(car_s > check_car_s && (car_s - check_car_s) > 15)
 	          			{
 	          				cost_right += (check_speed) - (check_car_s - car_s);
 
@@ -401,17 +425,16 @@ int main() {
 	          	std::cout << "left_warning: " << left_warning<<"\n";
 	          	std::cout << "right_warning: " << right_warning<<"\n";
 	          	std::cout << "-------------------\n";
-	          	std::cout << "-------------------\n";
 
-	          	if((cost_left < cost_right) && left_warning == false)
+	          	if(((cost_left < cost_right) && (left_warning == false))
+	          		|| left_no_car == true)
 	          	{
-	          		prev_lane_changed = true;
+	 
 	          		// lane exist
 	          		switch(lane)
 	          		{
 	          			case 0:
 	          				if(right_warning == false) lane = 1;
-	          				else prev_lane_changed = false;
 	          			break;
 	          			case 1:
 	          				lane = 0;
@@ -427,9 +450,9 @@ int main() {
 	          		
 	          		
 	          	}
-	          	else if(((cost_left >= cost_right) && right_warning == false))
+	          	else if(((cost_left >= cost_right) && (right_warning == false))
+	          		|| right_no_car == true)
 	          	{
-	          		prev_lane_changed = true;
 	          		switch(lane)
 	          		{
 	          			case 0:
@@ -440,7 +463,6 @@ int main() {
 	          			break;
 	          			case 2: 
 	          				if(left_warning == false) lane = 1;
-	          				else prev_lane_changed = false;
 	          			break;
 	          			default: 
 	          				lane = lane;
@@ -449,17 +471,14 @@ int main() {
 	          		}
 	          		
 	          	}
-	          	else{
-	          		prev_lane_changed = false;
-	          	}
+
+	          	std::cout << "final lane: " << lane<<"\n";
+	          	std::cout << "-------------------\n";
+	          
 
   	
           	}
-          	else{
-          		prev_lane_changed = false;
-          	}
-
-
+          	
 
 
 
